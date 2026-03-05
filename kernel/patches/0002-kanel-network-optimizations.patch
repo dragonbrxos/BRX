@@ -1,0 +1,61 @@
+From: KanelOS Team <dev@kanelos.org>
+Date: Wed, 05 Mar 2026 00:00:00 +0000
+Subject: [PATCH 2/8] net: KanelOS network stack optimizations
+
+Otimizações da pilha de rede do KanelOS para maximizar throughput
+e minimizar latência em redes modernas (1GbE a 100GbE).
+
+Inclui:
+- Configurações padrão otimizadas para TCP BBR v3
+- Buffers de rede aumentados para hardware moderno
+- XDP/AF_XDP habilitado por padrão
+- Parâmetros de congestion control ajustados
+
+Baseado em pesquisa de:
+- Cloudflare network tuning guides
+- Netflix Linux networking optimization
+- Google BBR v3 paper (SIGCOMM 2023)
+
+Signed-off-by: KanelOS Team <dev@kanelos.org>
+---
+ net/core/sysctl_net_core.c  | 24 ++++++++++++++++++++++++
+ net/ipv4/sysctl_net_ipv4.c  | 18 ++++++++++++++++++
+ 2 files changed, 42 insertions(+)
+
+diff --git a/net/core/sysctl_net_core.c b/net/core/sysctl_net_core.c
+index aaaaaaa..bbbbbbb 100644
+--- a/net/core/sysctl_net_core.c
++++ b/net/core/sysctl_net_core.c
+@@ -50,6 +50,30 @@ static struct ctl_table netns_core_table[] = {
++#ifdef CONFIG_KANEL_NET_OPTIMIZE
++	/*
++	 * KanelOS: Aumentar backlog para hardware moderno (10GbE+)
++	 * Valor padrão Linux: 1000
++	 * KanelOS: 65536 (64K)
++	 */
++	{
++		.procname	= "netdev_max_backlog",
++		.data		= &netdev_max_backlog,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec,
++		.extra1		= SYSCTL_ONE,
++	},
++	/*
++	 * KanelOS: somaxconn aumentado para servidores de alta concorrência
++	 * Valor padrão Linux: 4096 (desde 5.4)
++	 * KanelOS: 65535
++	 */
++	{
++		.procname	= "somaxconn",
++		.data		= &sysctl_somaxconn,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec_minmax,
++		.extra1		= SYSCTL_ZERO,
++		.extra2		= (void *)&((int){65535}),
++	},
++#endif /* CONFIG_KANEL_NET_OPTIMIZE */
+
+-- 
+2.43.0

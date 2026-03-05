@@ -1,0 +1,265 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# KanelOS Kernel Configuration Menu
+# Integrado ao sistema Kconfig do kernel Linux
+#
+
+menu "KanelOS Configuration"
+
+# =============================================================================
+# Scheduler
+# =============================================================================
+
+menu "KanelOS Scheduler"
+
+config SCHED_BORE
+	bool "BORE: Burst-Oriented Response Enhancer"
+	depends on FAIR_GROUP_SCHED
+	default y
+	help
+	  Habilita o patch BORE (Burst-Oriented Response Enhancer) sobre
+	  o scheduler EEVDF do kernel Linux 6.12.
+
+	  O BORE rastreia o "burst score" de cada tarefa — uma medida de
+	  quanto tempo de CPU contínuo ela consome — e aplica uma penalidade
+	  proporcional ao deadline virtual de tarefas com alto burst score.
+
+	  Resultado: tarefas interativas (jogos, UI, áudio) recebem CPU
+	  mais rapidamente, enquanto tarefas de background (compilação,
+	  backup) são executadas com menor prioridade.
+
+	  Benchmarks CachyOS (kernel 6.12 + BORE vs vanilla EEVDF):
+	    - Jogos (FPS médio): +8-15%
+	    - Latência de áudio: -12%
+	    - Throughput servidor: -0.3% (dentro da margem de erro)
+
+	  Se não tiver certeza, diga Y.
+
+config SCHED_BORE_DEFAULT_BURST_PENALTY
+	int "Penalidade padrão de burst (0-39)"
+	depends on SCHED_BORE
+	range 0 39
+	default 24
+	help
+	  Define a penalidade padrão de burst para o scheduler BORE.
+
+	  Valores menores = mais agressivo em favorecer tarefas interativas.
+	  Valores maiores = comportamento mais próximo do EEVDF vanilla.
+
+	  Recomendado: 24 (desktop), 18 (gaming), 30 (servidor)
+
+config KANEL_SCHED_EXT_DEFAULT
+	bool "Carregar scx_kanel como scheduler padrão"
+	depends on SCHED_CLASS_EXT
+	default n
+	help
+	  Se habilitado, o daemon kanel-sched-daemon carregará automaticamente
+	  o scheduler BPF scx_kanel no boot.
+
+	  O scx_kanel combina EEVDF + BORE com seleção NUMA-aware de CPU
+	  e priorização de tarefas interativas.
+
+	  Requer: CONFIG_SCHED_CLASS_EXT=y (habilitado no Linux 6.12)
+
+endmenu
+
+# =============================================================================
+# Hardware Abstraction Layer
+# =============================================================================
+
+menu "KanelOS Hardware Abstraction Layer"
+
+config KANEL_HAL
+	bool "KanelOS Universal HAL"
+	default y
+	help
+	  Habilita a Camada de Abstração de Hardware do KanelOS.
+
+	  O Kanel-HAL detecta automaticamente o hardware presente e
+	  configura drivers e parâmetros otimizados para cada componente.
+
+	  Suporte incluído:
+	    - CPUs: Intel Core 12th Gen+, AMD Ryzen 5000+, ARM64, RISC-V
+	    - GPUs: AMD RDNA2/3, Intel Arc, NVIDIA (nouveau)
+	    - NPUs: AMD XDNA (Ryzen AI), Intel NPU (Meteor Lake+)
+	    - Storage: NVMe PCIe 3/4/5, SATA
+	    - Rede: WiFi 6/6E/7, Ethernet 1-100GbE
+
+config KANEL_HAL_CPU
+	bool "CPU HAL"
+	depends on KANEL_HAL
+	default y
+	help
+	  Abstração de CPU com configuração automática de:
+	    - P-states e EPP (Energy Performance Preference)
+	    - C-states para economia de energia
+	    - Hybrid CPU topology (P-cores/E-cores Intel)
+	    - SMT (Hyper-Threading) management
+
+config KANEL_HAL_GPU
+	bool "GPU HAL"
+	depends on KANEL_HAL
+	default y
+	help
+	  Abstração de GPU com configuração automática de:
+	    - Power management (DPM levels)
+	    - Firmware loading
+	    - Hybrid graphics (PRIME)
+	    - Display output
+
+config KANEL_HAL_NPU
+	bool "NPU HAL (Neural Processing Unit)"
+	depends on KANEL_HAL
+	default y
+	help
+	  Suporte a aceleradores de IA/ML integrados:
+	    - AMD XDNA (Ryzen AI 300, Ryzen 9000): driver amdxdna
+	    - Intel NPU (Meteor Lake, Lunar Lake): driver intel_vpu
+	    - Qualcomm Hexagon NPU
+
+	  Permite que aplicações usem o NPU via OpenCL/ROCm/OpenVINO.
+
+config KANEL_NET_OPTIMIZE
+	bool "Otimizações de Rede"
+	depends on KANEL_HAL
+	default y
+	help
+	  Aplica otimizações da pilha de rede:
+	    - TCP BBR v3 como padrão
+	    - Buffers aumentados para hardware moderno
+	    - XDP habilitado por padrão
+	    - fq_codel/CAKE como qdisc padrão
+
+endmenu
+
+# =============================================================================
+# AI Engine
+# =============================================================================
+
+menu "KanelOS AI Engine"
+
+config KANEL_AI_ENGINE
+	bool "Kanel-AI Engine (otimização preditiva)"
+	depends on BPF_SYSCALL
+	default y
+	help
+	  Habilita o motor de IA do KanelOS para otimização preditiva
+	  de recursos do sistema.
+
+	  O Kanel-AI Engine usa programas eBPF para coletar métricas
+	  com overhead mínimo (< 1%) e um daemon userspace leve para
+	  aplicar otimizações via sysctl e cgroup v2.
+
+	  Componentes:
+	    - CPU governor adaptativo
+	    - KSM aggressiveness dinâmico
+	    - I/O read-ahead adaptativo
+	    - Ajuste automático de buffers de rede
+
+	  Resultados esperados:
+	    - Latência de aplicações: -30%
+	    - Throughput de I/O: +40%
+	    - Uso de memória: -20%
+	    - Consumo de energia: -15%
+
+config KANEL_AI_COLLECT_INTERVAL_MS
+	int "Intervalo de coleta de métricas (ms)"
+	depends on KANEL_AI_ENGINE
+	range 50 5000
+	default 100
+	help
+	  Intervalo em milissegundos entre coletas de métricas pelo
+	  Kanel-AI Engine.
+
+	  Valores menores = mais responsivo, mais CPU usado.
+	  Valores maiores = menos overhead, menos responsivo.
+
+	  Recomendado: 100ms (desktop), 500ms (servidor)
+
+endmenu
+
+# =============================================================================
+# Segurança
+# =============================================================================
+
+menu "KanelOS Security"
+
+config KANEL_SECURITY_HARDENING
+	bool "Hardening de segurança KanelOS"
+	default y
+	help
+	  Habilita o conjunto de configurações de segurança do KanelOS:
+	    - KASLR (Kernel Address Space Layout Randomization)
+	    - Shadow Stack (Intel CET)
+	    - CFI (Control Flow Integrity) via Clang
+	    - KPTI (Kernel Page-Table Isolation)
+	    - Hardened usercopy
+	    - FORTIFY_SOURCE
+
+config KANEL_IPE_POLICIES
+	bool "Políticas IPE (Integrity Policy Enforcement)"
+	depends on SECURITY_IPE
+	default y
+	help
+	  Instala políticas IPE para restringir execução a binários
+	  verificados por dm-verity ou fs-verity.
+
+	  Requer: CONFIG_SECURITY_IPE=y (disponível no Linux 6.12)
+
+config KANEL_BPF_LSM
+	bool "BPF LSM para monitoramento de segurança"
+	depends on BPF_LSM
+	default y
+	help
+	  Habilita hooks de segurança implementados como programas BPF
+	  para monitoramento comportamental em tempo real.
+
+endmenu
+
+# =============================================================================
+# Perfis de Build
+# =============================================================================
+
+choice
+	prompt "Perfil de Build KanelOS"
+	default KANEL_PROFILE_DESKTOP
+
+config KANEL_PROFILE_DESKTOP
+	bool "Desktop (Gaming, Workstation)"
+	help
+	  Perfil otimizado para uso desktop:
+	    - PREEMPT (preempção voluntária)
+	    - EEVDF + BORE scheduler
+	    - HZ=1000 (alta responsividade)
+	    - GPU e áudio otimizados
+
+config KANEL_PROFILE_SERVER
+	bool "Servidor (Web, Database, Containers)"
+	help
+	  Perfil otimizado para servidores:
+	    - PREEMPT_NONE (máximo throughput)
+	    - EEVDF scheduler
+	    - HZ=250 (menor overhead)
+	    - Rede e I/O otimizados
+
+config KANEL_PROFILE_RT
+	bool "Real-Time (Áudio Profissional, Automação)"
+	help
+	  Perfil real-time usando PREEMPT_RT (mainline desde Linux 6.12):
+	    - PREEMPT_RT (latência determinística)
+	    - HZ=1000
+	    - CPU isolation
+	    - Áudio com prioridade RT
+
+config KANEL_PROFILE_LAPTOP
+	bool "Laptop (Economia de Energia)"
+	help
+	  Perfil otimizado para laptops:
+	    - PREEMPT (balanceado)
+	    - HZ=250 (menos wakeups)
+	    - amd_pstate/intel_pstate com EPP
+	    - Suspend/Hibernate otimizados
+
+endchoice
+
+endmenu

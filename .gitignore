@@ -1,0 +1,93 @@
+# KanelOS .gitignore
+
+# Diretório de build (arquivos compilados)
+build/
+output/
+*.o
+*.ko
+*.mod
+*.mod.c
+*.mod.o
+*.symvers
+*.order
+*.cmd
+.tmp_versions/
+modules.builtin
+modules.builtin.modinfo
+vmlinux
+vmlinux.o
+System.map
+
+# Arquivos de configuração do kernel compilado
+.config
+.config.old
+.config.bak
+
+# Artefatos de compilação
+*.deb
+*.rpm
+*.tar.gz
+*.tar.xz
+*.tar.bz2
+*.iso
+*.img
+
+# Logs
+*.log
+build.log
+compile.log
+
+# Temporários
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+*.egg-info/
+dist/
+.eggs/
+
+# Rust
+target/
+Cargo.lock
+
+# Documentação gerada
+site/
+docs/_build/
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.clangd/
+compile_commands.json
+
+# Ferramentas de análise
+.cache/
+*.gcov
+*.gcda
+*.gcno
+
+# Chaves e certificados (NUNCA commitar)
+*.pem
+*.key
+*.crt
+*.p12
+signing_key.pem
+certs/signing_key.pem
+certs/x509.genkey
+
+# Módulos do kernel baixados
+linux-*.tar.xz
+linux-*/

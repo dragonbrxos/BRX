@@ -1,0 +1,177 @@
+From: KanelOS Team <dev@kanelos.org>
+Date: Wed, 05 Mar 2026 00:00:00 +0000
+Subject: [PATCH 3/8] hal: Add KanelOS Universal Hardware Abstraction Layer
+
+Adiciona a Camada de Abstração de Hardware (HAL) do KanelOS, que
+fornece detecção automática de hardware e carregamento inteligente
+de drivers com fallback gracioso.
+
+O Kanel-HAL funciona em conjunto com udev e o sistema de módulos
+do kernel para garantir compatibilidade máxima.
+
+Componentes:
+- kanel-hal-core: núcleo de detecção e registro
+- kanel-cpu-hal: abstração de CPU (Intel/AMD/ARM/RISC-V)
+- kanel-gpu-hal: abstração de GPU (AMD/Intel/NVIDIA)
+- kanel-storage-hal: abstração de armazenamento
+- kanel-net-hal: abstração de rede
+
+Signed-off-by: KanelOS Team <dev@kanelos.org>
+---
+ drivers/kanel/Kconfig         | 45 +++++++++++++++
+ drivers/kanel/Makefile        | 12 ++++
+ drivers/kanel/kanel-hal.h     | 98 +++++++++++++++++++++++++++++++++
+ drivers/kanel/kanel-hal-core.c| 156 +++++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 311 insertions(+)
+ create mode 100644 drivers/kanel/Kconfig
+ create mode 100644 drivers/kanel/Makefile
+ create mode 100644 drivers/kanel/kanel-hal.h
+ create mode 100644 drivers/kanel/kanel-hal-core.c
+
+diff --git a/drivers/kanel/Kconfig b/drivers/kanel/Kconfig
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/drivers/kanel/Kconfig
+@@ -0,0 +1,45 @@
++# SPDX-License-Identifier: GPL-2.0
++
++menu "KanelOS Hardware Abstraction Layer"
++
++config KANEL_HAL
++	bool "KanelOS Universal HAL"
++	default y
++	help
++	  Habilita a Camada de Abstração de Hardware do KanelOS.
++	  Fornece detecção automática de hardware, carregamento
++	  inteligente de drivers e fallbacks para máxima compatibilidade.
++
++	  Suporta: x86_64, ARM64, RISC-V
++	  Hardware: Intel/AMD/ARM CPUs, AMD/Intel/NVIDIA GPUs,
++	            NVMe/SATA storage, WiFi 6/6E/7, Ethernet 1-100GbE
++
++config KANEL_HAL_CPU
++	bool "KanelOS CPU HAL"
++	depends on KANEL_HAL
++	default y
++	help
++	  Abstração de CPU com suporte a:
++	  - Intel Core 12th Gen+ (intel_pstate EPP)
++	  - AMD Ryzen 5000+ (amd_pstate EPP)
++	  - ARM64 (Qualcomm, MediaTek, Apple M-series via Asahi)
++	  - RISC-V (SiFive, StarFive)
++
++config KANEL_HAL_GPU
++	bool "KanelOS GPU HAL"
++	depends on KANEL_HAL
++	default y
++	help
++	  Abstração de GPU com suporte a:
++	  - AMD Radeon RX 5000-9000 (amdgpu, open-source)
++	  - Intel Arc / Xe (xe driver, open-source)
++	  - NVIDIA RTX 20-40 (nouveau + GSP firmware)
++	  - Intel iGPU (i915)
++	  - AMD APU (amdgpu integrado)
++
++config KANEL_NET_OPTIMIZE
++	bool "KanelOS Network Stack Optimizations"
++	depends on KANEL_HAL
++	default y
++	help
++	  Aplica otimizações da pilha de rede do KanelOS:
++	  TCP BBR v3, buffers aumentados, XDP habilitado.
++
++endmenu
+
+diff --git a/drivers/kanel/kanel-hal.h b/drivers/kanel/kanel-hal.h
+new file mode 100644
+index 0000000..2222222
+--- /dev/null
++++ b/drivers/kanel/kanel-hal.h
+@@ -0,0 +1,98 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * KanelOS Universal Hardware Abstraction Layer
++ * Copyright (C) 2026 KanelOS Team
++ */
++
++#ifndef _KANEL_HAL_H
++#define _KANEL_HAL_H
++
++#include <linux/types.h>
++#include <linux/device.h>
++#include <linux/pci.h>
++
++/* Versão do HAL */
++#define KANEL_HAL_VERSION_MAJOR  0
++#define KANEL_HAL_VERSION_MINOR  1
++#define KANEL_HAL_VERSION_PATCH  0
++
++/* Tipos de hardware suportados */
++enum kanel_hw_type {
++	KANEL_HW_CPU_INTEL_CORE_12GEN_PLUS,
++	KANEL_HW_CPU_AMD_RYZEN_5000_PLUS,
++	KANEL_HW_CPU_AMD_RYZEN_AI,    /* Com NPU integrado */
++	KANEL_HW_CPU_INTEL_METEOR_LAKE, /* Com NPU integrado */
++	KANEL_HW_CPU_ARM64_QUALCOMM,
++	KANEL_HW_CPU_ARM64_APPLE,     /* Via Asahi Linux */
++	KANEL_HW_CPU_RISCV,
++	KANEL_HW_GPU_AMD_RDNA2,
++	KANEL_HW_GPU_AMD_RDNA3,
++	KANEL_HW_GPU_INTEL_ARC,
++	KANEL_HW_GPU_INTEL_XE,
++	KANEL_HW_GPU_NVIDIA_RTX,
++	KANEL_HW_NPU_AMD_XDNA,       /* amdxdna driver */
++	KANEL_HW_NPU_INTEL,          /* intel-npu-driver */
++	KANEL_HW_STORAGE_NVME_PCIE4,
++	KANEL_HW_STORAGE_NVME_PCIE5,
++	KANEL_HW_NET_WIFI6,
++	KANEL_HW_NET_WIFI6E,
++	KANEL_HW_NET_WIFI7,
++	KANEL_HW_NET_ETH_10GBE,
++	KANEL_HW_NET_ETH_25GBE,
++	KANEL_HW_NET_ETH_100GBE,
++	KANEL_HW_UNKNOWN,
++};
++
++/* Informações de hardware detectado */
++struct kanel_hw_info {
++	enum kanel_hw_type type;
++	char vendor[64];
++	char model[128];
++	char driver[64];
++	char driver_fallback[64];
++	bool driver_loaded;
++	bool fallback_active;
++	u32 capabilities;
++};
++
++/* Capacidades de hardware (bitmask) */
++#define KANEL_CAP_POWER_MANAGEMENT  BIT(0)
++#define KANEL_CAP_HARDWARE_ACCEL    BIT(1)
++#define KANEL_CAP_SR_IOV            BIT(2)
++#define KANEL_CAP_IOMMU             BIT(3)
++#define KANEL_CAP_NPU               BIT(4)
++#define KANEL_CAP_RDMA              BIT(5)
++#define KANEL_CAP_NVME_IOPOLL       BIT(6)
++#define KANEL_CAP_XDP               BIT(7)
++
++/* API pública do HAL */
++int kanel_hal_init(void);
++void kanel_hal_exit(void);
++int kanel_hal_detect_hardware(struct kanel_hw_info *info);
++int kanel_hal_load_driver(struct kanel_hw_info *info);
++int kanel_hal_apply_optimizations(struct kanel_hw_info *info);
++const char *kanel_hal_hw_type_name(enum kanel_hw_type type);
++
++/* Detecção específica */
++int kanel_hal_detect_cpu(struct kanel_hw_info *info);
++int kanel_hal_detect_gpu(struct kanel_hw_info *info);
++int kanel_hal_detect_npu(struct kanel_hw_info *info);
++int kanel_hal_detect_storage(struct kanel_hw_info *info);
++int kanel_hal_detect_network(struct kanel_hw_info *info);
++
++#endif /* _KANEL_HAL_H */
+
+-- 
+2.43.0

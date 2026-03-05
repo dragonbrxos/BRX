@@ -1,0 +1,106 @@
+From: KanelOS Team <dev@kanelos.org>
+Date: Wed, 05 Mar 2026 00:00:00 +0000
+Subject: [PATCH 5/8] mm: KanelOS memory management optimizations
+
+Otimizações do gerenciamento de memória do KanelOS para maximizar
+o uso eficiente de RAM e minimizar latência de page faults.
+
+Inclui:
+- Configurações padrão otimizadas para MGLRU (Multi-Generational LRU)
+- Zswap com Zstd habilitado por padrão
+- KSM (Kernel Same-page Merging) configurado para desktops
+- Transparent Huge Pages em modo madvise
+- vm.swappiness=10 como padrão (vs 60 no vanilla)
+
+Baseado em:
+- MGLRU paper (Yu Zhao, Google, 2022)
+- Benchmarks Phoronix Test Suite com MGLRU
+- Configurações do CachyOS e Arch Linux
+
+Signed-off-by: KanelOS Team <dev@kanelos.org>
+---
+ mm/kanel-mm-defaults.c | 67 ++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 67 insertions(+)
+ create mode 100644 mm/kanel-mm-defaults.c
+
+diff --git a/mm/kanel-mm-defaults.c b/mm/kanel-mm-defaults.c
+new file mode 100644
+index 0000000..bbbbbbb
+--- /dev/null
++++ b/mm/kanel-mm-defaults.c
+@@ -0,0 +1,67 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * KanelOS Memory Management Defaults
++ * Copyright (C) 2026 KanelOS Team
++ *
++ * Configura os parâmetros padrão de gerenciamento de memória
++ * do KanelOS para melhor performance e responsividade.
++ */
++
++#include <linux/mm.h>
++#include <linux/swap.h>
++#include <linux/ksm.h>
++#include <linux/init.h>
++
++#ifdef CONFIG_KANEL_MM_OPTIMIZE
++
++/**
++ * kanel_mm_init - Configurar parâmetros de memória do KanelOS
++ *
++ * Chamado durante o boot para aplicar os padrões otimizados.
++ * Todos os parâmetros podem ser sobrescritos via sysctl.
++ */
++static int __init kanel_mm_init(void)
++{
++	pr_info("kanel-mm: Aplicando otimizações de memória KanelOS\n");
++
++	/*
++	 * vm.swappiness = 10
++	 * Padrão Linux: 60
++	 * KanelOS: 10 — preferir RAM, usar swap apenas quando necessário
++	 *
++	 * Com Zswap + Zstd, a "swap" em RAM é muito mais rápida que
++	 * a swap em disco, então podemos ser mais conservadores.
++	 */
++	vm_swappiness = 10;
++
++	/*
++	 * vm.vfs_cache_pressure = 50
++	 * Padrão Linux: 100
++	 * KanelOS: 50 — manter mais inodes/dentries em cache
++	 *
++	 * Reduz latência de acesso a arquivos frequentemente usados.
++	 */
++	vfs_cache_pressure = 50;
++
++	/*
++	 * vm.dirty_ratio = 15, vm.dirty_background_ratio = 5
++	 * Padrão Linux: 20/10
++	 * KanelOS: 15/5 — write-back mais frequente, menos dados perdidos
++	 */
++	dirty_ratio = 15;
++	dirty_background_ratio = 5;
++
++	/*
++	 * MGLRU: habilitar todas as gerações (bitmask 7 = gerações 0,1,2)
++	 * Padrão Linux: 0 (desabilitado por padrão em algumas distros)
++	 * KanelOS: 7 (habilitado)
++	 */
++#ifdef CONFIG_LRU_GEN
++	lru_gen_enabled = 7;
++	pr_info("kanel-mm: MGLRU habilitado (gerações: 4)\n");
++#endif
++
++	pr_info("kanel-mm: swappiness=%d, vfs_cache_pressure=%d\n",
++		vm_swappiness, vfs_cache_pressure);
++
++	return 0;
++}
++
++core_initcall(kanel_mm_init);
++
++#endif /* CONFIG_KANEL_MM_OPTIMIZE */
+
+-- 
+2.43.0

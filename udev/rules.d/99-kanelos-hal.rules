@@ -1,0 +1,124 @@
+# =============================================================================
+# KanelOS — Regras udev para Hardware Abstraction Layer
+# Arquivo: /etc/udev/rules.d/99-kanelos-hal.rules
+# =============================================================================
+# Estas regras garantem carregamento automático de drivers e otimizações
+# para hardware detectado pelo KanelOS HAL.
+# =============================================================================
+
+# --- CPUs: Configurar P-state e EPP ---
+
+# AMD Ryzen 5000+ (Zen 3+): ativar amd_pstate em modo ativo
+ACTION=="add", SUBSYSTEM=="cpu", ATTR{cpufreq/scaling_driver}=="amd-pstate",
+    RUN+="/usr/lib/kanelos/hal/setup-amd-pstate.sh"
+
+# Intel Core 12th Gen+: ativar intel_pstate com EPP balance_performance
+ACTION=="add", SUBSYSTEM=="cpu", ATTR{cpufreq/scaling_driver}=="intel_pstate",
+    RUN+="/usr/lib/kanelos/hal/setup-intel-pstate.sh"
+
+# --- GPUs: Configurar DRM e power management ---
+
+# AMD GPU (RDNA2/3): ativar power management avançado
+ACTION=="add", SUBSYSTEM=="drm", ATTR{device/vendor}=="0x1002",
+    RUN+="/usr/lib/kanelos/hal/setup-amd-gpu.sh $env{DEVNAME}"
+
+# Intel Arc (xe driver): configurar power management
+ACTION=="add", SUBSYSTEM=="drm", ATTR{device/vendor}=="0x8086",
+    ATTR{device/device}=="0x56[0-9A-F][0-9A-F]",
+    RUN+="/usr/lib/kanelos/hal/setup-intel-arc.sh $env{DEVNAME}"
+
+# NVIDIA (nouveau + GSP): configurar firmware GSP
+ACTION=="add", SUBSYSTEM=="drm", ATTR{device/vendor}=="0x10de",
+    RUN+="/usr/lib/kanelos/hal/setup-nvidia-nouveau.sh $env{DEVNAME}"
+
+# --- NPUs: Configurar aceleradores de IA ---
+
+# AMD XDNA (Ryzen AI NPU)
+ACTION=="add", SUBSYSTEM=="accel", DRIVER=="amdxdna",
+    RUN+="/usr/lib/kanelos/hal/setup-amd-npu.sh"
+
+# Intel NPU (Meteor Lake+)
+ACTION=="add", SUBSYSTEM=="misc", DRIVER=="intel_vpu",
+    RUN+="/usr/lib/kanelos/hal/setup-intel-npu.sh"
+
+# --- NVMe: Configurar polling e otimizações ---
+
+# NVMe PCIe 4.0/5.0: ativar IOPOLL para máxima performance
+ACTION=="add", SUBSYSTEM=="block", KERNEL=="nvme[0-9]n[0-9]",
+    ATTR{queue/scheduler}="none",
+    ATTR{queue/nr_requests}="1024",
+    ATTR{queue/read_ahead_kb}="512",
+    RUN+="/usr/lib/kanelos/hal/setup-nvme.sh $env{DEVNAME}"
+
+# SATA SSD: usar BFQ scheduler
+ACTION=="add", SUBSYSTEM=="block", KERNEL=="sd[a-z]",
+    ATTR{queue/rotational}=="0",
+    ATTR{queue/scheduler}="bfq",
+    ATTR{queue/nr_requests}="256"
+
+# SATA HDD: usar BFQ scheduler com read-ahead maior
+ACTION=="add", SUBSYSTEM=="block", KERNEL=="sd[a-z]",
+    ATTR{queue/rotational}=="1",
+    ATTR{queue/scheduler}="bfq",
+    ATTR{queue/read_ahead_kb}="2048",
+    ATTR{queue/nr_requests}="128"
+
+# --- Rede: Configurar offloads e otimizações ---
+
+# Ethernet 10GbE+: ativar offloads de hardware
+ACTION=="add", SUBSYSTEM=="net", KERNEL!="lo",
+    ATTR{speed}=="10000|25000|40000|100000",
+    RUN+="/usr/lib/kanelos/hal/setup-highspeed-net.sh $env{INTERFACE}"
+
+# WiFi 6/6E/7: configurar power management
+ACTION=="add", SUBSYSTEM=="net", DEVTYPE=="wlan",
+    RUN+="/usr/lib/kanelos/hal/setup-wifi.sh $env{INTERFACE}"
+
+# --- USB4 / Thunderbolt ---
+
+ACTION=="add", SUBSYSTEM=="thunderbolt", ATTR{authorized}=="0",
+    RUN+="/usr/lib/kanelos/hal/setup-thunderbolt.sh $env{DEVPATH}"
+
+# --- Áudio: Configurar SOF e HDA ---
+
+# Sound Open Firmware (laptops modernos)
+ACTION=="add", SUBSYSTEM=="sound", DRIVER=="sof-audio-pci-intel*",
+    RUN+="/usr/lib/kanelos/hal/setup-sof-audio.sh"
+
+# HDA Intel
+ACTION=="add", SUBSYSTEM=="sound", DRIVER=="snd_hda_intel",
+    RUN+="/usr/lib/kanelos/hal/setup-hda-audio.sh"
+
+# --- Câmera ---
+
+# IPU3 (laptops Intel)
+ACTION=="add", SUBSYSTEM=="video4linux", DRIVER=="ipu3-imgu",
+    RUN+="/usr/lib/kanelos/hal/setup-ipu3-camera.sh"
+
+# --- Bateria e Energia ---
+
+# Bateria: configurar thresholds de carga (laptops)
+ACTION=="add", SUBSYSTEM=="power_supply", KERNEL=="BAT*",
+    RUN+="/usr/lib/kanelos/hal/setup-battery.sh"
+
+# AC adapter: ajustar perfil de energia
+ACTION=="change", SUBSYSTEM=="power_supply", KERNEL=="AC*",
+    ATTR{online}=="1",
+    RUN+="/usr/lib/kanelos/hal/set-power-profile.sh performance"
+
+ACTION=="change", SUBSYSTEM=="power_supply", KERNEL=="AC*",
+    ATTR{online}=="0",
+    RUN+="/usr/lib/kanelos/hal/set-power-profile.sh balanced"
+
+# --- Dispositivos de Input ---
+
+# Touchpad: configurar libinput
+ACTION=="add", SUBSYSTEM=="input", ATTR{name}=="*Touchpad*",
+    ENV{LIBINPUT_MODEL_TOUCHPAD_VISIBLE_MARKER}="1"
+
+# Controles de jogo: configurar para baixa latência
+ACTION=="add", SUBSYSTEM=="input", ATTR{name}=="*Controller*",
+    ATTR{power/control}="on"
+
+ACTION=="add", SUBSYSTEM=="input", ATTR{name}=="*Gamepad*",
+    ATTR{power/control}="on"

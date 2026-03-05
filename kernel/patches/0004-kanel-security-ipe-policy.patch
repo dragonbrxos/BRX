@@ -1,0 +1,118 @@
+From: KanelOS Team <dev@kanelos.org>
+Date: Wed, 05 Mar 2026 00:00:00 +0000
+Subject: [PATCH 4/8] security/ipe: Add KanelOS default IPE policy
+
+Adiciona a política IPE padrão do KanelOS para Integrity Policy
+Enforcement (IPE), novo LSM mergeado no Linux 6.12.
+
+O IPE permite restringir a execução de código apenas a binários
+que venham de armazenamento com integridade verificada (dm-verity,
+fs-verity, initramfs assinado).
+
+Política KanelOS:
+- Boot: apenas initramfs assinado pode executar
+- Sistema: binários em partições dm-verity são permitidos
+- Usuário: binários com fs-verity são permitidos
+- Fallback: modo permissivo para compatibilidade
+
+Referência: Documentation/security/ipe.rst (Linux 6.12)
+
+Signed-off-by: KanelOS Team <dev@kanelos.org>
+---
+ security/ipe/kanel-policy.c | 89 ++++++++++++++++++++++++++++++++++++
+ 1 file changed, 89 insertions(+)
+ create mode 100644 security/ipe/kanel-policy.c
+
+diff --git a/security/ipe/kanel-policy.c b/security/ipe/kanel-policy.c
+new file mode 100644
+index 0000000..aaaaaaa
+--- /dev/null
++++ b/security/ipe/kanel-policy.c
+@@ -0,0 +1,89 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * KanelOS IPE Policy
++ * Copyright (C) 2026 KanelOS Team
++ *
++ * Política IPE padrão do KanelOS para boot seguro.
++ * Baseada na documentação oficial do Linux 6.12 IPE.
++ */
++
++/*
++ * Política IPE em formato de texto (compilada no kernel):
++ *
++ * policy_name=KanelOS
++ * policy_version=0.1.0
++ *
++ * DEFAULT action=DENY
++ *
++ * # Permitir execução do initramfs (assinado)
++ * op=EXECUTE boot_verified=TRUE action=ALLOW
++ *
++ * # Permitir binários em partições dm-verity
++ * op=EXECUTE dmverity_roothash=<ROOTHASH> action=ALLOW
++ *
++ * # Permitir binários com fs-verity habilitado
++ * op=EXECUTE fsverity_signature=TRUE action=ALLOW
++ *
++ * # Modo de desenvolvimento: permitir tudo (DESABILITAR EM PRODUÇÃO)
++ * # op=EXECUTE action=ALLOW
++ */
++
++#include <linux/ipe.h>
++#include <linux/init.h>
++
++#ifdef CONFIG_KANEL_IPE_POLICIES
++
++/* Política IPE padrão do KanelOS */
++static const char kanel_ipe_policy[] =
++	"policy_name=KanelOS\n"
++	"policy_version=0.1.0\n"
++	"\n"
++	"DEFAULT action=DENY\n"
++	"\n"
++	"# Permitir execução do initramfs verificado\n"
++	"op=EXECUTE boot_verified=TRUE action=ALLOW\n"
++	"\n"
++	"# Permitir binários em partições dm-verity verificadas\n"
++	"op=EXECUTE dmverity_verified=TRUE action=ALLOW\n"
++	"\n"
++	"# Permitir binários com assinatura fs-verity\n"
++	"op=EXECUTE fsverity_signature=TRUE action=ALLOW\n"
++	"\n"
++	"# Permitir leitura de arquivos de configuração\n"
++	"op=OPEN fsverity_signature=TRUE action=ALLOW\n"
++	"op=OPEN dmverity_verified=TRUE action=ALLOW\n"
++	"op=OPEN boot_verified=TRUE action=ALLOW\n";
++
++/**
++ * kanel_ipe_init - Registrar política IPE do KanelOS
++ *
++ * Chamado durante o boot para registrar a política IPE padrão.
++ * A política pode ser sobrescrita via initramfs ou linha de comando.
++ */
++static int __init kanel_ipe_init(void)
++{
++	int ret;
++
++	pr_info("kanel-ipe: Registrando política IPE KanelOS v0.1.0\n");
++
++	ret = ipe_register_policy(kanel_ipe_policy, sizeof(kanel_ipe_policy));
++	if (ret) {
++		pr_err("kanel-ipe: Falha ao registrar política: %d\n", ret);
++		return ret;
++	}
++
++	pr_info("kanel-ipe: Política registrada com sucesso\n");
++	pr_info("kanel-ipe: Modo: DENY por padrão, ALLOW para código verificado\n");
++
++	return 0;
++}
++
++/* Registrar antes do init do IPE */
++security_initcall(kanel_ipe_init);
++
++#endif /* CONFIG_KANEL_IPE_POLICIES */
+
+-- 
+2.43.0
