@@ -10,7 +10,10 @@ iso_application="DragonBRX Live/Install Media"
 iso_version="$(date +%Y.%m.%d)"
 install_dir="arch"
 buildmodes=("iso")
+# Suporte Híbrido: BIOS (MBR) + UEFI (GPT)
 bootmodes=("bios.syslinux.mbr" "bios.syslinux.eltorito" "uefi-ia32.grub.esp" "uefi-x64.grub.esp" "uefi-ia32.grub.eltorito" "uefi-x64.grub.eltorito")
+# Ativar flag de boot híbrido para o mkarchiso
+isohybrid_mbr="/usr/lib/syslinux/bios/isohdpfx.bin"
 arch_x86_64_packages=(
     # Base do sistema
     base base-devel linux-firmware networkmanager git curl wget reflector
