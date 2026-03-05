@@ -1,3 +1,4 @@
+From 0005000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: KanelOS Team <dev@kanelos.org>
 Date: Wed, 05 Mar 2026 00:00:00 +0000
 Subject: [PATCH 5/8] mm: KanelOS memory management optimizations
@@ -28,7 +29,7 @@ new file mode 100644
 index 0000000..bbbbbbb
 --- /dev/null
 +++ b/mm/kanel-mm-defaults.c
-@@ -0,0 +1,67 @@
+@@ -0,1 +1,73 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * KanelOS Memory Management Defaults

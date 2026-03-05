@@ -8,15 +8,16 @@
 set -e
 
 # Cores para output
-GREEN=\033[0;32m
-BLUE=\033[0;34m
-YELLOW=\033[1;33m
-RED=\033[0;31m
-NC=\033[0m
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
 
 log() { echo -e "${BLUE}[BRX-NET]${NC} $*"; }
 ok()  { echo -e "${GREEN}[OK]${NC}      $*"; }
 warn(){ echo -e "${YELLOW}[WARN]${NC}    $*"; }
+err() { echo -e "${RED}[ERR]${NC}     $*"; }
 
 log "Iniciando detecção de interfaces de rede..."
 
@@ -29,6 +30,8 @@ for IFACE in ${INTERFACES}; do
     if [[ $IFACE == e* ]]; then
         if ip addr show $IFACE | grep -q "inet "; then
             ok "Conexão Ethernet detectada em ${IFACE}."
+            # Configurar initcwnd=10 na rota padrão (RFC 6928)
+            ip route change default initcwnd 10 2>/dev/null || true
             exit 0
         fi
     fi
@@ -59,6 +62,9 @@ if [ -n "$WIFI_IFACE" ]; then
         
         if [ $? -eq 0 ]; then
             ok "Conectado com sucesso a ${SSID}."
+            # Configurar initcwnd=10 na rota padrão (RFC 6928)
+            # net.ipv4.tcp_init_cwnd nao e um sysctl - deve ser configurado por rota
+            ip route change default initcwnd 10 2>/dev/null || true
             exit 0
         else
             err "Falha ao conectar a ${SSID}."

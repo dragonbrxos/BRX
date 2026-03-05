@@ -1,3 +1,4 @@
+From 0003000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: KanelOS Team <dev@kanelos.org>
 Date: Wed, 05 Mar 2026 00:00:00 +0000
 Subject: [PATCH 3/8] hal: Add KanelOS Universal Hardware Abstraction Layer
@@ -33,7 +34,7 @@ new file mode 100644
 index 0000000..1111111
 --- /dev/null
 +++ b/drivers/kanel/Kconfig
-@@ -0,0 +1,45 @@
+@@ -0,1 +1,49 @@
 +# SPDX-License-Identifier: GPL-2.0
 +
 +menu "KanelOS Hardware Abstraction Layer"
@@ -88,7 +89,7 @@ new file mode 100644
 index 0000000..2222222
 --- /dev/null
 +++ b/drivers/kanel/kanel-hal.h
-@@ -0,0 +1,98 @@
+@@ -0,1 +1,84 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * KanelOS Universal Hardware Abstraction Layer

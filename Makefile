@@ -86,8 +86,15 @@ apply-patches: download-kernel
 	@for patch in $(PATCHES_DIR)/0*.patch; do \
 		if [ -f "$$patch" ]; then \
 			echo -e "  $(CYAN)Aplicando: $$(basename $$patch)$(NC)"; \
-			patch -d $(KERNEL_SRC) -p1 --forward --silent < "$$patch" || \
-			echo -e "  $(YELLOW)  Patch já aplicado ou conflito: $$(basename $$patch)$(NC)"; \
+			if head -1 "$$patch" | grep -q "^From [0-9a-f]\{40\} Mon Sep 17"; then \
+				git -C $(KERNEL_SRC) am --3way --ignore-whitespace "$$patch" 2>/dev/null || \
+				(git -C $(KERNEL_SRC) am --abort 2>/dev/null; \
+				 patch -d $(KERNEL_SRC) -p1 --forward --silent < "$$patch" || \
+				 echo -e "  $(YELLOW)  Patch já aplicado ou conflito: $$(basename $$patch)$(NC)"); \
+			else \
+				patch -d $(KERNEL_SRC) -p1 --forward --silent < "$$patch" || \
+				echo -e "  $(YELLOW)  Patch já aplicado ou conflito: $$(basename $$patch)$(NC)"; \
+			fi; \
 		fi; \
 	done
 	@echo -e "$(GREEN)✓ Patches aplicados$(NC)"
@@ -97,7 +104,9 @@ configure-kernel: apply-patches
 	@echo -e "$(BLUE)→ Configurando kernel (perfil: $(PROFILE))...$(NC)"
 	@mkdir -p $(KERNEL_BUILD)
 	@if [ -f "$(CONFIGS_DIR)/kanel-$(PROFILE).config" ]; then \
-		cp $(CONFIGS_DIR)/kanel-$(PROFILE).config $(KERNEL_SRC)/.config; \
+		# CORREÇÃO: copiar .config para KERNEL_BUILD (output dir), nao KERNEL_SRC \
+		# Copiar para KERNEL_SRC causa "source tree is not clean" com O= separado \
+		cp $(CONFIGS_DIR)/kanel-$(PROFILE).config $(KERNEL_BUILD)/.config; \
 		$(MAKE) -C $(KERNEL_SRC) O=$(KERNEL_BUILD) olddefconfig; \
 	else \
 		echo -e "$(RED)✗ Configuração não encontrada: $(CONFIGS_DIR)/kanel-$(PROFILE).config$(NC)"; \

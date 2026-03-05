@@ -52,7 +52,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 check_deps() {
 	log_info "Verificando dependências..."
 
-	local deps=(gcc make bc flex bison libssl-dev libelf-dev git wget)
+	local deps=(gcc make bc flex bison libssl-dev libelf-dev git wget pahole dwarves libzstd-dev)
 
 	if [ "${USE_LLVM}" = "1" ]; then
 		deps+=(clang llvm lld)
@@ -98,6 +98,16 @@ download_kernel() {
 			-C "${BUILD_DIR}/" || log_error "Falha ao extrair kernel"
 		log_ok "Kernel extraído em ${KERNEL_SRC}"
 	fi
+
+	# Inicializar repositório git no source tree (necessário para git am)
+	if [ ! -d "${KERNEL_SRC}/.git" ]; then
+		log_info "Inicializando repositório git no source tree..."
+		git -C "${KERNEL_SRC}" init -q
+		git -C "${KERNEL_SRC}" add -A
+		git -C "${KERNEL_SRC}" commit -q -m "Linux ${KERNEL_VERSION} vanilla" \
+			--author="Linux Kernel <torvalds@linux-foundation.org>"
+		log_ok "Repositório git inicializado"
+	fi
 }
 
 # =============================================================================
@@ -121,18 +131,39 @@ apply_patches() {
 
 		log_info "  Aplicando: ${patch_name}"
 
-		if patch -d "${KERNEL_SRC}" -p1 --forward --dry-run \
-			--silent < "${patch}" 2>/dev/null; then
-			patch -d "${KERNEL_SRC}" -p1 --forward \
-				--silent < "${patch}" || {
-				log_warn "  Falha ao aplicar: ${patch_name}"
-				((failed_count++))
-				continue
-			}
-			((patch_count++))
-			log_ok "  Aplicado: ${patch_name}"
+		# Usar git am para patches no formato mbox (From HASH Mon Sep 17...)
+		# Usar patch -p1 como fallback para patches no formato diff puro
+		if head -1 "${patch}" | grep -q "^From [0-9a-f]\{40\} Mon Sep 17"; then
+			# Formato mbox git - usar git am
+			if git -C "${KERNEL_SRC}" am --3way --ignore-whitespace \
+				"${patch}" 2>/dev/null; then
+				((patch_count++))
+				log_ok "  Aplicado (git am): ${patch_name}"
+			else
+				git -C "${KERNEL_SRC}" am --abort 2>/dev/null || true
+				log_warn "  Falha (git am): ${patch_name} — tentando patch -p1..."
+				if patch -d "${KERNEL_SRC}" -p1 --forward --silent < "${patch}" 2>/dev/null; then
+					((patch_count++))
+					log_ok "  Aplicado (patch): ${patch_name}"
+				else
+					log_warn "  Patch já aplicado ou conflito: ${patch_name}"
+				fi
+			fi
 		else
-			log_warn "  Patch já aplicado ou conflito: ${patch_name}"
+			# Formato diff puro - usar patch -p1
+			if patch -d "${KERNEL_SRC}" -p1 --forward --dry-run \
+				--silent < "${patch}" 2>/dev/null; then
+				patch -d "${KERNEL_SRC}" -p1 --forward \
+					--silent < "${patch}" || {
+					log_warn "  Falha ao aplicar: ${patch_name}"
+					((failed_count++))
+					continue
+				}
+				((patch_count++))
+				log_ok "  Aplicado: ${patch_name}"
+			else
+				log_warn "  Patch já aplicado ou conflito: ${patch_name}"
+			fi
 		fi
 	done
 
@@ -151,13 +182,16 @@ configure_kernel() {
 		log_error "Configuração não encontrada: ${config_file}"
 	fi
 
+	# CORREÇÃO: copiar .config para KERNEL_BUILD (output dir), NÃO para KERNEL_SRC
+	# Copiar para KERNEL_SRC causa "source tree is not clean" ao usar O= separado
 	mkdir -p "${KERNEL_BUILD}"
-	cp "${config_file}" "${KERNEL_SRC}/.config"
+	cp "${config_file}" "${KERNEL_BUILD}/.config"
 
 	# Atualizar configuração para o kernel atual
+	# O olddefconfig usa KERNEL_BUILD/.config automaticamente com O=
 	make -C "${KERNEL_SRC}" O="${KERNEL_BUILD}" \
 		ARCH="${ARCH}" \
-		olddefconfig
+		olddefconfig 2>&1 | grep -v "^$" || true
 
 	log_ok "Kernel configurado"
 }

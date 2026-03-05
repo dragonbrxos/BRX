@@ -1,3 +1,4 @@
+From 0004000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: KanelOS Team <dev@kanelos.org>
 Date: Wed, 05 Mar 2026 00:00:00 +0000
 Subject: [PATCH 4/8] security/ipe: Add KanelOS default IPE policy
@@ -28,7 +29,7 @@ new file mode 100644
 index 0000000..aaaaaaa
 --- /dev/null
 +++ b/security/ipe/kanel-policy.c
-@@ -0,0 +1,89 @@
+@@ -0,1 +1,85 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * KanelOS IPE Policy
