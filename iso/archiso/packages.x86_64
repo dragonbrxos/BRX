@@ -1,0 +1,66 @@
+# Pacotes para o ambiente Live e para o sistema base do DragonBRX OS
+
+# Base do sistema
+base
+base-devel
+linux-firmware
+networkmanager
+git
+curl
+wget
+reflector
+
+# Ferramentas de disco
+parted
+fdisk
+e2fsprogs
+btrfs-progs
+dosfstools
+ntfs-3g
+
+# KDE Plasma
+plasma-desktop
+sddm
+konsole
+dolphin
+firefox
+
+# Calamares e dependências
+calamares
+# calamares-settings-brx (será criado e instalado via script)
+
+# Suporte a Wayland
+xorg-xwayland
+plasma-wayland-session
+
+# Drivers gráficos (mesa)
+mesa
+vulkan-radeon
+vulkan-intel
+
+# Utilitários
+sudo
+nano
+vim
+
+# Para Waydroid (binder/ashmem)
+android-tools
+
+# Para Wine/Proton
+wine
+wine-gecko
+wine-mono
+proton
+dxvk
+vkd3d-proton
+
+# Para brx-pkg (distrobox)
+distrobox
+flatpak
+snapd
+
+# Para brx-game-mode
+gamemode
+
+# Para brx-driver-manager
+lspci

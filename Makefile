@@ -58,7 +58,7 @@ NC                  := \033[0m
 .PHONY: test benchmark install
 
 ## all: Compilar tudo (kernel + initramfs + tools)
-all: kernel initramfs tools
+all: kernel initramfs tools iso
 	@echo -e "$(GREEN)✓ KanelOS $(KANELOS_VERSION) compilado com sucesso!$(NC)"
 	@echo -e "$(CYAN)  Perfil: $(PROFILE) | Kernel: $(KERNEL_VERSION) | Arch: $(ARCH)$(NC)"
 
@@ -121,11 +121,12 @@ initramfs:
 	@bash initramfs/build/build-initramfs.sh $(PROFILE)
 	@echo -e "$(GREEN)✓ Initramfs pronto$(NC)"
 
-## iso: Gerar imagem ISO bootável
+## iso: Gerar imagem ISO bootável do DragonBRX OS
 iso: kernel initramfs
 	@echo -e "$(BLUE)→ Gerando ISO para perfil: $(PROFILE)...$(NC)"
-	@bash iso/build-scripts/build-iso.sh $(PROFILE) $(KANELOS_VERSION)
-	@echo -e "$(GREEN)✓ ISO gerada em $(OUTPUT_DIR)/kanelos-$(KANELOS_VERSION)-$(PROFILE)-$(ARCH).iso$(NC)"
+	@mkdir -p $(OUTPUT_DIR)
+	@cd iso/archiso && sudo mkarchiso -v -o $(abspath $(OUTPUT_DIR)) $(PROFILE)
+	@echo -e "$(GREEN)✓ ISO gerada em $(OUTPUT_DIR)/dragonbrx-$(KANELOS_VERSION)-$(PROFILE)-$(ARCH).iso$(NC)"
 
 ## tools: Compilar ferramentas do KanelOS
 tools:
@@ -248,6 +249,7 @@ clean:
 	@echo -e "$(BLUE)→ Limpando build...$(NC)"
 	@rm -rf $(BUILD_DIR)/kernel-*
 	@rm -rf $(OUTPUT_DIR)
+	@rm -rf iso/archiso/out
 	@echo -e "$(GREEN)✓ Build limpo$(NC)"
 
 ## distclean: Limpeza completa (incluindo kernel baixado)
